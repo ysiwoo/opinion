@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>설문 응답 타임라인</title>
+<style>
+  :root {
+    --bg: #f6f7f9;
+    --card-bg: #ffffff;
+    --border: #e3e5e9;
+    --text: #1c1e21;
+    --muted: #6b7280;
+    --accent: #4f46e5;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 2rem 1rem 4rem;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+  }
+  .page {
+    max-width: 720px;
+    margin: 0 auto;
+  }
+  h1 {
+    font-size: 1.5rem;
+    margin-bottom: 0.25rem;
+  }
+  .subtitle {
+    color: var(--muted);
+    margin-top: 0;
+    margin-bottom: 2rem;
+    font-size: 0.9rem;
+  }
+  #status {
+    color: var(--muted);
+    font-size: 0.9rem;
+  }
+  .timeline {
+    position: relative;
+    padding-left: 1.5rem;
+  }
+  .timeline::before {
+    content: "";
+    position: absolute;
+    left: 6px;
+    top: 8px;
+    bottom: 8px;
+    width: 2px;
+    background: var(--border);
+  }
+  .entry {
+    position: relative;
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 1rem 1.25rem;
+    margin-bottom: 1rem;
+  }
+  .entry::before {
+    content: "";
+    position: absolute;
+    left: -1.5rem;
+    top: 1.3rem;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--accent);
+    border: 2px solid var(--bg);
+  }
+  .entry-time {
+    font-size: 0.8rem;
+    color: var(--muted);
+    margin-bottom: 0.6rem;
+  }
+  .answer-row {
+    display: flex;
+    gap: 0.5rem;
+    padding: 0.3rem 0;
+    border-top: 1px dashed var(--border);
+  }
+  .answer-row:first-of-type {
+    border-top: none;
+  }
+  .answer-question {
+    flex: 0 0 auto;
+    font-weight: 600;
+    min-width: 30%;
+  }
+  .answer-value {
+    color: var(--text);
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+  .empty {
+    color: var(--muted);
+    text-align: center;
+    padding: 2rem 0;
+  }
+</style>
+</head>
+<body>
+  <div class="page">
+    <h1>설문 응답 타임라인</h1>
+    <p class="subtitle">구글폼 제출 내역이 최신순으로 표시됩니다.</p>
+    <p id="status"></p>
+    <div id="timeline" class="timeline"></div>
+  </div>
+
+  <script>
+    // fetch가 실패했을 때(예: 로컬 파일 미리보기) 대신 보여줄 샘플 데이터
+    var SAMPLE_DATA = [
+      {
+        timestamp: "2026-08-30T09:15:00.000Z",
+        answers: {
+          "이름": "홍길동",
+          "만족도": "매우 만족",
+          "의견": "샘플 데이터입니다. data/responses.json을 불러오지 못했을 때 표시됩니다."
+        }
+      },
+      {
+        timestamp: "2026-08-31T02:40:00.000Z",
+        answers: {
+          "이름": "김철수",
+          "만족도": "보통",
+          "의견": "실제 배포 환경에서는 이 대신 실제 응답이 표시됩니다."
+        }
+      }
+    ];
+
+    function formatTimestamp(value) {
+      var date = new Date(value);
+      if (isNaN(date.getTime())) return value;
+      return date.toLocaleString("ko-KR", {
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit"
+      });
+    }
+
+    function renderTimeline(entries, isSample) {
+      var container = document.getElementById("timeline");
+      var status = document.getElementById("status");
+      container.innerHTML = "";
+
+      if (isSample) {
+        status.textContent = "data/responses.json을 불러오지 못해 샘플 데이터를 표시 중입니다.";
+      } else {
+        status.textContent = "총 " + entries.length + "건의 응답";
+      }
+
+      if (!entries.length) {
+        container.innerHTML = '<p class="empty">아직 응답이 없습니다.</p>';
+        return;
+      }
+
+      var sorted = entries.slice().sort(function (a, b) {
+        return new Date(b.timestamp) - new Date(a.timestamp);
+      });
+
+      sorted.forEach(function (entry) {
+        var card = document.createElement("div");
+        card.className = "entry";
+
+        var time = document.createElement("div");
+        time.className = "entry-time";
+        time.textContent = formatTimestamp(entry.timestamp);
+        card.appendChild(time);
+
+        var answers = entry.answers || {};
+        Object.keys(answers).forEach(function (question) {
+          var row = document.createElement("div");
+          row.className = "answer-row";
+
+          var q = document.createElement("div");
+          q.className = "answer-question";
+          q.textContent = question;
+
+          var v = document.createElement("div");
+          v.className = "answer-value";
+          var value = answers[question];
+          v.textContent = Array.isArray(value) ? value.join(", ") : value;
+
+          row.appendChild(q);
+          row.appendChild(v);
+          card.appendChild(row);
+        });
+
+        container.appendChild(card);
+      });
+    }
+
+    fetch("data/responses.json", { cache: "no-store" })
+      .then(function (res) {
+        if (!res.ok) throw new Error("응답 파일을 불러오지 못했습니다.");
+        return res.json();
+      })
+      .then(function (data) {
+        renderTimeline(Array.isArray(data) ? data : [], false);
+      })
+      .catch(function () {
+        renderTimeline(SAMPLE_DATA, true);
+      });
+  </script>
+</body>
+</html>
