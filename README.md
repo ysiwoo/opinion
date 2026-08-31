@@ -24,10 +24,11 @@ GitHub Pages로 배포된 `site/index.html`이 그 데이터를 최신순 타임
 
 ### 1. GitHub 저장소 준비
 
-1. GitHub에 새 저장소를 만들고 이 폴더의 내용을 푸시합니다. (Pages는 보통 `main` 브랜치 루트 또는 `/docs` 폴더에서 서빙되므로,
-   가장 간단하게는 이 저장소를 그대로 사용하되 `site/` 안의 내용을 저장소 루트에 두거나 Pages 소스를 `/site`로 지정할 수 있는 배포 방식(Actions 배포)을 사용하세요.)
-2. 저장소 **Settings → Pages**에서 GitHub Pages를 활성화합니다. 브랜치와 폴더(예: `main` / `/site` 또는 루트)를 지정합니다.
-3. 배포가 끝나면 `https://ysiwoo.github.io/opinion/` 주소로 `index.html`이 열리는지 확인합니다.
+1. GitHub에 새 저장소를 만들고 이 폴더의 내용을 푸시합니다.
+2. 저장소 **Settings → Pages → Build and deployment → Source**에서 **GitHub Actions**를 선택합니다.
+   (브랜치/폴더를 직접 고르는 방식이 아니라, 이 저장소에 포함된 `.github/workflows/pages.yml`이 `site/` 폴더 내용만 자동으로 배포합니다.)
+3. `main`에 푸시되면(특히 `site/` 하위 변경) Actions 탭에서 `Deploy site/ to GitHub Pages` 워크플로가 실행되는지 확인합니다.
+4. 배포가 끝나면 `https://ysiwoo.github.io/opinion/` 주소로 `index.html`이 열리는지 확인합니다.
 
 ### 2. GitHub Personal Access Token 발급
 
