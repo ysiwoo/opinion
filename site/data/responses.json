@@ -1,15 +1,1 @@
-[
-  {
-    "timestamp": "2026-09-01T10:00:29.516Z",
-    "answers": {
-      "이름 및 학번(필수x. 익명 건의도 가능)": "익명",
-      "건의 사항": "바나나 우유 선택 사항 추가해주세요\n"
-    },
-    "classification": {
-      "topic": "메뉴 추가 요청",
-      "sentiment": "neutral",
-      "hasProfanity": false,
-      "profanityNote": ""
-    }
-  }
-]
+[]
