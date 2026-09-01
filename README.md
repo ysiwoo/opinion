@@ -48,6 +48,9 @@ GitHub Pages로 배포된 `site/index.html`이 그 데이터를 최신순 타임
    | `GITHUB_REPO` | 저장소 이름 | `opinion` |
    | `GITHUB_BRANCH` | (선택) 커밋할 브랜치, 기본 `main` | `main` |
    | `GITHUB_FILE_PATH` | (선택) 데이터 파일 경로, 기본 `data/responses.json` | `site/data/responses.json` |
+   | `GEMINI_API_KEY` | (선택) Gemini API 키. 등록하면 응답마다 주제/감정/비속어 자동 분류가 추가됨 | `AIza...` |
+   | `ADMIN_PASSWORD` | (선택) 사이트 "관리자 모드"(의견 숨기기/복원) 비밀번호 | `임의의 문자열` |
+   | `GITHUB_HIDDEN_FILE_PATH` | (선택) 숨김 의견함 파일 경로, 기본 `data/hidden.json` | `site/data/hidden.json` |
 
    > `GITHUB_FILE_PATH`는 실제 저장소에서 `responses.json`이 위치한 경로와 정확히 일치해야 합니다.
    > (예: 저장소 루트에 `site/`를 그대로 뒀다면 `site/data/responses.json`, `site/` 내용을 루트로 옮겼다면 `data/responses.json`.)
@@ -71,3 +74,63 @@ GitHub Pages로 배포된 `site/index.html`이 그 데이터를 최신순 타임
 - `site/index.html`은 `responses.json`의 키(질문)를 그대로 순회해서 표시하므로, 폼 문항이 추가/변경되어도
   이 파일을 수정할 필요가 없습니다.
 - `fetch`가 실패하는 환경(예: 로컬에서 `index.html`을 파일로 직접 열었을 때)에서는 코드 내 `SAMPLE_DATA`가 대신 표시됩니다.
+
+## Gemini를 이용한 응답 자동 분류 (선택 기능)
+
+`GEMINI_API_KEY` 스크립트 속성을 등록하면, 폼이 제출될 때마다 Apps Script가 Gemini API(`gemini-3.6-flash`)를 호출해
+응답 내용을 분석하고 각 항목에 `classification` 필드를 추가해 커밋합니다.
+
+```json
+{
+  "timestamp": "2026-09-01T12:00:00.000Z",
+  "answers": { "의견": "..." },
+  "classification": {
+    "topic": "성능",
+    "sentiment": "negative",
+    "hasProfanity": true,
+    "profanityNote": "비속어 표현 포함"
+  }
+}
+```
+
+- `topic`: 정해진 목록 없이 Gemini가 내용에 맞게 붙이는 짧은 주제 라벨
+- `sentiment`: `positive` / `negative` / `neutral`
+- `hasProfanity`: 비속어·욕설·혐오 표현 포함 여부. `true`인 항목은 타임라인에서 주황 테두리와 경고 배지로 표시됩니다.
+- `GEMINI_API_KEY`를 등록하지 않았거나 API 호출이 실패해도 분류만 생략될 뿐, 응답 저장(GitHub 커밋) 자체는 항상 정상 동작합니다.
+- 분류 로직만 따로 테스트하려면 Apps Script 편집기에서 `manualClassifyTest` 함수를 실행하고 로그를 확인하세요.
+- API 키는 [Google AI Studio](https://aistudio.google.com/app/apikey)에서 무료로 발급받을 수 있습니다.
+
+## 의견 숨기기 (관리자 전용, 선택 기능)
+
+사이트에서 "관리자 모드"로 로그인하면 각 의견 옆에 **숨기기** 버튼이 나타납니다. 숨긴 의견은 `data/responses.json`에서
+`data/hidden.json`(숨김 의견함)으로 옮겨지고, 관리자 모드에서 **복원** 버튼으로 언제든 되돌릴 수 있습니다.
+복원하지 않고 **10일이 지나면 자동으로 완전히 삭제**됩니다.
+
+> 이 저장소가 공개(public) 저장소라면 `data/hidden.json` 원본 파일 자체는 GitHub에서 여전히 열람 가능합니다.
+> "숨기기"는 사이트 화면에서 보이지 않게 하는 기능이며, 10일이 지나 삭제되기 전까지는 완전한 비공개가 아닙니다.
+
+### 설정 방법
+
+1. Apps Script 스크립트 속성에 `ADMIN_PASSWORD`를 등록합니다 (원하는 비밀번호 문자열).
+2. Apps Script 편집기 상단 **배포 → 새 배포**를 클릭합니다.
+   - 유형: **웹 앱**
+   - 실행 사용자: **나**
+   - 액세스 권한: **모든 사용자**
+3. 배포 후 발급되는 `https://script.google.com/macros/s/.../exec` 형태의 URL을 복사합니다.
+4. `site/index.html`에서 `var HIDE_API_URL = "";` 줄을 찾아 그 URL을 넣습니다.
+   ```js
+   var HIDE_API_URL = "https://script.google.com/macros/s/.../exec";
+   ```
+5. Apps Script 편집기에서 `createPurgeTrigger` 함수를 한 번 수동 실행합니다.
+   (숨김 의견함에서 10일 지난 항목을 매일 자동으로 삭제하는 트리거가 등록됩니다.)
+6. 변경사항을 커밋/푸시해 사이트를 다시 배포합니다.
+
+> **주의:** Apps Script 코드를 수정한 뒤에는 저장만으로는 웹 앱 URL에 반영되지 않습니다.
+> **배포 → 배포 관리**에서 기존 배포를 **새 버전**으로 다시 배포해야 합니다.
+
+### 사용 방법
+
+- 사이트 오른쪽 위 **관리자 모드** 버튼을 눌러 비밀번호를 입력하면, 각 의견에 **숨기기** 버튼과
+  숨김 의견함 패널(남은 삭제일 표시, 복원 버튼)이 나타납니다.
+- `ADMIN_PASSWORD`를 등록하지 않았거나 `HIDE_API_URL`을 설정하지 않으면 이 기능은 비활성화된 채로
+  사이트의 나머지 기능(타임라인 표시, 자동 분류)은 그대로 동작합니다.
