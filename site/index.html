@@ -451,7 +451,7 @@
         restoreBtn.className = "restore-btn";
         restoreBtn.textContent = "복원";
         restoreBtn.addEventListener("click", function () {
-          restoreEntryAction(entry.timestamp);
+          restoreEntryAction(entry);
         });
         row.appendChild(restoreBtn);
 
@@ -475,7 +475,12 @@
       callAdminApi({ action: "hide", password: adminPassword, timestamp: entry.timestamp })
         .then(function (result) {
           if (result.ok) {
-            loadResponses().then(refreshAdminPanel);
+            // GitHub Pages 재배포를 기다리지 않고, 이미 아는 결과를 화면에 바로 반영한다.
+            allEntries = allEntries.filter(function (e) {
+              return e.timestamp !== entry.timestamp;
+            });
+            renderTimeline(allEntries, false);
+            refreshAdminPanel();
           } else {
             alert("숨기기에 실패했습니다: " + (result.error || ""));
           }
@@ -485,11 +490,17 @@
         });
     }
 
-    function restoreEntryAction(timestamp) {
-      callAdminApi({ action: "restore", password: adminPassword, timestamp: timestamp })
+    function restoreEntryAction(entry) {
+      callAdminApi({ action: "restore", password: adminPassword, timestamp: entry.timestamp })
         .then(function (result) {
           if (result.ok) {
-            loadResponses().then(refreshAdminPanel);
+            var restored = {};
+            Object.keys(entry).forEach(function (key) {
+              if (key !== "hiddenAt") restored[key] = entry[key];
+            });
+            allEntries.push(restored);
+            renderTimeline(allEntries, false);
+            refreshAdminPanel();
           } else {
             alert("복원에 실패했습니다: " + (result.error || ""));
           }
