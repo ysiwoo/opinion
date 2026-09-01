@@ -210,6 +210,26 @@
     white-space: nowrap;
     color: var(--muted);
   }
+  .profanity-panel {
+    background: #fffbeb;
+    border: 1px solid #fde68a;
+    border-radius: 10px;
+    padding: 1rem 1.25rem;
+    margin-bottom: 1.5rem;
+  }
+  .profanity-panel h2 {
+    font-size: 1rem;
+    margin: 0 0 0.5rem;
+    color: #b45309;
+  }
+  .profanity-panel .hint {
+    color: #92400e;
+    font-size: 0.8rem;
+    margin: 0 0 0.75rem;
+  }
+  .profanity-panel .entry:last-child {
+    margin-bottom: 0;
+  }
 </style>
 </head>
 <body>
@@ -221,6 +241,7 @@
       <button id="adminToggle" class="admin-toggle" type="button">관리자 모드</button>
     </div>
     <div id="hiddenPanel" class="hidden-panel" hidden></div>
+    <div id="profanityPanel" class="profanity-panel" hidden></div>
     <div id="timeline" class="timeline"></div>
   </div>
 
@@ -283,108 +304,155 @@
       });
     }
 
+    function hasProfanity(entry) {
+      return !!(entry.classification && entry.classification.hasProfanity);
+    }
+
+    function buildEntryCard(entry) {
+      var card = document.createElement("div");
+      card.className = "entry";
+
+      var classification = entry.classification;
+      if (hasProfanity(entry)) {
+        card.classList.add("flagged");
+      }
+
+      var timeRow = document.createElement("div");
+      timeRow.className = "entry-time-row";
+
+      var time = document.createElement("div");
+      time.className = "entry-time";
+      time.textContent = formatTimestamp(entry.timestamp);
+      timeRow.appendChild(time);
+
+      if (isAdmin) {
+        var hideBtn = document.createElement("button");
+        hideBtn.type = "button";
+        hideBtn.className = "hide-btn";
+        hideBtn.textContent = "숨기기";
+        hideBtn.addEventListener("click", function (targetEntry) {
+          return function () {
+            hideEntryAction(targetEntry);
+          };
+        }(entry));
+        timeRow.appendChild(hideBtn);
+      }
+
+      card.appendChild(timeRow);
+
+      if (classification) {
+        var badges = document.createElement("div");
+        badges.className = "badges";
+
+        if (classification.topic) {
+          var topicBadge = document.createElement("span");
+          topicBadge.className = "badge badge-topic";
+          topicBadge.textContent = classification.topic;
+          badges.appendChild(topicBadge);
+        }
+
+        if (classification.sentiment) {
+          var sentimentBadge = document.createElement("span");
+          sentimentBadge.className = "badge badge-" + classification.sentiment;
+          sentimentBadge.textContent = SENTIMENT_LABEL[classification.sentiment] || classification.sentiment;
+          badges.appendChild(sentimentBadge);
+        }
+
+        if (classification.hasProfanity) {
+          var profanityBadge = document.createElement("span");
+          profanityBadge.className = "badge badge-profanity";
+          profanityBadge.textContent = "⚠ 비속어 포함";
+          profanityBadge.title = classification.profanityNote || "";
+          badges.appendChild(profanityBadge);
+        }
+
+        card.appendChild(badges);
+      }
+
+      var answers = entry.answers || {};
+      Object.keys(answers).forEach(function (question) {
+        var row = document.createElement("div");
+        row.className = "answer-row";
+
+        var q = document.createElement("div");
+        q.className = "answer-question";
+        q.textContent = question;
+
+        var v = document.createElement("div");
+        v.className = "answer-value";
+        var value = answers[question];
+        v.textContent = Array.isArray(value) ? value.join(", ") : value;
+
+        row.appendChild(q);
+        row.appendChild(v);
+        card.appendChild(row);
+      });
+
+      return card;
+    }
+
     function renderTimeline(entries, isSample) {
       var container = document.getElementById("timeline");
       var status = document.getElementById("status");
       container.innerHTML = "";
 
+      // 비속어로 분류된 항목은 타임라인에서 빼고, 아래 별도 칸(renderProfanityPanel)에서만 보여준다.
+      var visible = entries.filter(function (entry) {
+        return !hasProfanity(entry);
+      });
+
       if (isSample) {
         status.textContent = "data/responses.json을 불러오지 못해 샘플 데이터를 표시 중입니다.";
       } else {
-        status.textContent = "총 " + entries.length + "건의 응답";
+        status.textContent = "총 " + visible.length + "건의 응답";
       }
 
-      if (!entries.length) {
+      if (!visible.length) {
         container.innerHTML = '<p class="empty">아직 응답이 없습니다.</p>';
         return;
       }
 
-      var sorted = entries.slice().sort(function (a, b) {
+      var sorted = visible.slice().sort(function (a, b) {
         return new Date(b.timestamp) - new Date(a.timestamp);
       });
 
       sorted.forEach(function (entry) {
-        var card = document.createElement("div");
-        card.className = "entry";
-
-        var classification = entry.classification;
-        if (classification && classification.hasProfanity) {
-          card.classList.add("flagged");
-        }
-
-        var timeRow = document.createElement("div");
-        timeRow.className = "entry-time-row";
-
-        var time = document.createElement("div");
-        time.className = "entry-time";
-        time.textContent = formatTimestamp(entry.timestamp);
-        timeRow.appendChild(time);
-
-        if (isAdmin) {
-          var hideBtn = document.createElement("button");
-          hideBtn.type = "button";
-          hideBtn.className = "hide-btn";
-          hideBtn.textContent = "숨기기";
-          hideBtn.addEventListener("click", function (targetEntry) {
-            return function () {
-              hideEntryAction(targetEntry);
-            };
-          }(entry));
-          timeRow.appendChild(hideBtn);
-        }
-
-        card.appendChild(timeRow);
-
-        if (classification) {
-          var badges = document.createElement("div");
-          badges.className = "badges";
-
-          if (classification.topic) {
-            var topicBadge = document.createElement("span");
-            topicBadge.className = "badge badge-topic";
-            topicBadge.textContent = classification.topic;
-            badges.appendChild(topicBadge);
-          }
-
-          if (classification.sentiment) {
-            var sentimentBadge = document.createElement("span");
-            sentimentBadge.className = "badge badge-" + classification.sentiment;
-            sentimentBadge.textContent = SENTIMENT_LABEL[classification.sentiment] || classification.sentiment;
-            badges.appendChild(sentimentBadge);
-          }
-
-          if (classification.hasProfanity) {
-            var profanityBadge = document.createElement("span");
-            profanityBadge.className = "badge badge-profanity";
-            profanityBadge.textContent = "⚠ 비속어 포함";
-            profanityBadge.title = classification.profanityNote || "";
-            badges.appendChild(profanityBadge);
-          }
-
-          card.appendChild(badges);
-        }
-
-        var answers = entry.answers || {};
-        Object.keys(answers).forEach(function (question) {
-          var row = document.createElement("div");
-          row.className = "answer-row";
-
-          var q = document.createElement("div");
-          q.className = "answer-question";
-          q.textContent = question;
-
-          var v = document.createElement("div");
-          v.className = "answer-value";
-          var value = answers[question];
-          v.textContent = Array.isArray(value) ? value.join(", ") : value;
-
-          row.appendChild(q);
-          row.appendChild(v);
-          card.appendChild(row);
-        });
-
-        container.appendChild(card);
+        container.appendChild(buildEntryCard(entry));
       });
+    }
+
+    function renderProfanityPanel(entries) {
+      var panel = document.getElementById("profanityPanel");
+      panel.innerHTML = "";
+
+      var flagged = entries.filter(hasProfanity).sort(function (a, b) {
+        return new Date(b.timestamp) - new Date(a.timestamp);
+      });
+
+      if (!flagged.length) {
+        panel.hidden = true;
+        return;
+      }
+
+      panel.hidden = false;
+
+      var title = document.createElement("h2");
+      title.textContent = "⚠ 비속어 포함 의견 (" + flagged.length + "건)";
+      panel.appendChild(title);
+
+      var hint = document.createElement("p");
+      hint.className = "hint";
+      hint.textContent = "자동 분류로 비속어가 감지되어 이 칸에 따로 모았습니다.";
+      panel.appendChild(hint);
+
+      flagged.forEach(function (entry) {
+        panel.appendChild(buildEntryCard(entry));
+      });
+    }
+
+    function renderAll(entries, isSample) {
+      renderTimeline(entries, isSample);
+      renderProfanityPanel(entries);
     }
 
     function loadResponses() {
@@ -395,11 +463,11 @@
         })
         .then(function (data) {
           allEntries = Array.isArray(data) ? data : [];
-          renderTimeline(allEntries, false);
+          renderAll(allEntries, false);
         })
         .catch(function () {
           allEntries = SAMPLE_DATA;
-          renderTimeline(allEntries, true);
+          renderAll(allEntries, true);
         });
     }
 
@@ -479,7 +547,7 @@
             allEntries = allEntries.filter(function (e) {
               return e.timestamp !== entry.timestamp;
             });
-            renderTimeline(allEntries, false);
+            renderAll(allEntries, false);
             refreshAdminPanel();
           } else {
             alert("숨기기에 실패했습니다: " + (result.error || ""));
@@ -499,7 +567,7 @@
               if (key !== "hiddenAt") restored[key] = entry[key];
             });
             allEntries.push(restored);
-            renderTimeline(allEntries, false);
+            renderAll(allEntries, false);
             refreshAdminPanel();
           } else {
             alert("복원에 실패했습니다: " + (result.error || ""));
@@ -518,7 +586,7 @@
         adminPassword = null;
         toggleBtn.textContent = "관리자 모드";
         toggleBtn.classList.remove("active");
-        renderTimeline(allEntries, false);
+        renderAll(allEntries, false);
         renderHiddenPanel([]);
         return;
       }
@@ -538,7 +606,7 @@
             adminPassword = pwd;
             toggleBtn.textContent = "관리자 모드 ON";
             toggleBtn.classList.add("active");
-            renderTimeline(allEntries, false);
+            renderAll(allEntries, false);
             refreshAdminPanel();
           } else {
             alert("비밀번호가 올바르지 않습니다.");
