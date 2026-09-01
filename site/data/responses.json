@@ -1,1 +1,15 @@
-[]
+[
+  {
+    "timestamp": "2026-09-01T10:26:24.591Z",
+    "answers": {
+      "이름 및 학번(필수x. 익명 건의도 가능)": "익명",
+      "건의 사항": "앙기모띠"
+    },
+    "classification": {
+      "topic": "장난성 건의",
+      "sentiment": "neutral",
+      "hasProfanity": true,
+      "profanityNote": "부적절한 인터넷 은어(앙기모띠) 사용"
+    }
+  }
+]
