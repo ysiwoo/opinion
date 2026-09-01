@@ -230,6 +230,50 @@
   .profanity-panel .entry:last-child {
     margin-bottom: 0;
   }
+  .toolbar-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+  }
+  .search-row {
+    margin-bottom: 1rem;
+  }
+  .search-input {
+    width: 100%;
+    padding: 0.55rem 0.8rem;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--card-bg);
+    color: var(--text);
+    font-size: 0.9rem;
+    box-sizing: border-box;
+  }
+  .word-cloud-panel {
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 1.5rem 1.25rem;
+    margin-bottom: 1.5rem;
+    text-align: center;
+  }
+  .word-cloud-panel h2 {
+    font-size: 1rem;
+    margin: 0 0 1rem;
+    text-align: left;
+  }
+  .word-cloud {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    align-items: baseline;
+    gap: 0.3rem 0.8rem;
+  }
+  .word-cloud-item {
+    color: var(--accent);
+    font-weight: 700;
+    line-height: 1;
+    white-space: nowrap;
+  }
 </style>
 </head>
 <body>
@@ -238,8 +282,16 @@
     <p class="subtitle">구글폼 제출 내역이 최신순으로 표시됩니다.</p>
     <div class="toolbar">
       <p id="status" style="margin:0;"></p>
-      <button id="adminToggle" class="admin-toggle" type="button">관리자 모드</button>
+      <div class="toolbar-actions">
+        <button id="wordCloudToggle" class="admin-toggle" type="button">워드클라우드</button>
+        <button id="csvDownload" class="admin-toggle" type="button">CSV 다운로드</button>
+        <button id="adminToggle" class="admin-toggle" type="button">관리자 모드</button>
+      </div>
     </div>
+    <div class="search-row">
+      <input type="search" id="searchInput" class="search-input" placeholder="의견 내용 검색...">
+    </div>
+    <div id="wordCloudPanel" class="word-cloud-panel" hidden></div>
     <div id="hiddenPanel" class="hidden-panel" hidden></div>
     <div id="profanityPanel" class="profanity-panel" hidden></div>
     <div id="timeline" class="timeline"></div>
@@ -281,6 +333,9 @@
     var allEntries = [];
     var isAdmin = false;
     var adminPassword = null;
+    var currentIsSample = false;
+    var searchQuery = "";
+    var wordCloudOpen = false;
 
     function callAdminApi(payload) {
       return fetch(HIDE_API_URL, {
@@ -450,9 +505,27 @@
       });
     }
 
+    function matchesSearch(entry) {
+      if (!searchQuery) return true;
+      var answers = entry.answers || {};
+      return Object.keys(answers).some(function (q) {
+        var value = answers[q];
+        var text = Array.isArray(value) ? value.join(" ") : String(value == null ? "" : value);
+        return text.toLowerCase().indexOf(searchQuery) !== -1 || q.toLowerCase().indexOf(searchQuery) !== -1;
+      });
+    }
+
+    function getCurrentEntries() {
+      return allEntries.filter(matchesSearch);
+    }
+
     function renderAll(entries, isSample) {
-      renderTimeline(entries, isSample);
-      renderProfanityPanel(entries);
+      var filtered = entries.filter(matchesSearch);
+      renderTimeline(filtered, isSample);
+      renderProfanityPanel(filtered);
+      if (wordCloudOpen) {
+        renderWordCloud(filtered);
+      }
     }
 
     function loadResponses() {
@@ -463,12 +536,158 @@
         })
         .then(function (data) {
           allEntries = Array.isArray(data) ? data : [];
+          currentIsSample = false;
           renderAll(allEntries, false);
         })
         .catch(function () {
           allEntries = SAMPLE_DATA;
+          currentIsSample = true;
           renderAll(allEntries, true);
         });
+    }
+
+    // 간단한 한국어 불용어 목록. 완벽한 형태소 분석이 아니라
+    // 공백/구두점 기준 분리 + 흔한 조사·접속사 제거 수준의 휴리스틱이다.
+    var KOREAN_STOPWORDS = {
+      "그리고": true, "그러나": true, "그래서": true, "하지만": true, "그런데": true,
+      "정말": true, "진짜": true, "너무": true, "아주": true, "매우": true, "조금": true,
+      "이거": true, "저거": true, "그거": true, "이것": true, "저것": true, "그것": true,
+      "합니다": true, "해요": true, "입니다": true, "있습니다": true, "없습니다": true,
+      "같아요": true, "같습니다": true, "이제": true, "그냥": true, "저는": true,
+      "제가": true, "저도": true, "이건": true, "저건": true, "그건": true, "많이": true,
+      "좀": true, "더": true, "이번": true, "때문에": true, "위해": true
+    };
+
+    function extractWordFrequency(entries) {
+      var freq = {};
+      entries.forEach(function (entry) {
+        var answers = entry.answers || {};
+        Object.keys(answers).forEach(function (q) {
+          var value = answers[q];
+          var text = Array.isArray(value) ? value.join(" ") : String(value == null ? "" : value);
+          var tokens = text.split(/[^\p{L}\p{N}]+/u).filter(Boolean);
+          tokens.forEach(function (token) {
+            if (token.length < 2 || KOREAN_STOPWORDS[token]) return;
+            freq[token] = (freq[token] || 0) + 1;
+          });
+        });
+      });
+      return freq;
+    }
+
+    function renderWordCloud(entries) {
+      var panel = document.getElementById("wordCloudPanel");
+      panel.innerHTML = "";
+
+      var title = document.createElement("h2");
+      title.textContent = "워드클라우드";
+      panel.appendChild(title);
+
+      var freq = extractWordFrequency(entries);
+      var words = Object.keys(freq).map(function (word) {
+        return { word: word, count: freq[word] };
+      });
+      words.sort(function (a, b) {
+        return b.count - a.count;
+      });
+      words = words.slice(0, 40);
+
+      if (!words.length) {
+        var empty = document.createElement("p");
+        empty.className = "hint";
+        empty.textContent = "표시할 단어가 없습니다.";
+        panel.appendChild(empty);
+        return;
+      }
+
+      var maxCount = words[0].count;
+      var minCount = words[words.length - 1].count;
+
+      var cloud = document.createElement("div");
+      cloud.className = "word-cloud";
+
+      words.forEach(function (item) {
+        var span = document.createElement("span");
+        span.className = "word-cloud-item";
+        var ratio = maxCount === minCount ? 1 : (item.count - minCount) / (maxCount - minCount);
+        var fontSize = 0.85 + ratio * 2.4;
+        span.style.fontSize = fontSize.toFixed(2) + "rem";
+        span.style.opacity = (0.55 + ratio * 0.45).toFixed(2);
+        span.textContent = item.word;
+        span.title = item.count + "회 언급";
+        cloud.appendChild(span);
+      });
+
+      panel.appendChild(cloud);
+    }
+
+    function toggleWordCloud() {
+      wordCloudOpen = !wordCloudOpen;
+      var btn = document.getElementById("wordCloudToggle");
+      var panel = document.getElementById("wordCloudPanel");
+      panel.hidden = !wordCloudOpen;
+      btn.classList.toggle("active", wordCloudOpen);
+      if (wordCloudOpen) {
+        renderWordCloud(getCurrentEntries());
+      }
+    }
+
+    function escapeCsvField(value) {
+      var str = value === undefined || value === null ? "" : String(value);
+      if (/[",\n\r]/.test(str)) {
+        str = '"' + str.replace(/"/g, '""') + '"';
+      }
+      return str;
+    }
+
+    function downloadCsv() {
+      var entries = getCurrentEntries();
+      if (!entries.length) {
+        alert("내보낼 데이터가 없습니다.");
+        return;
+      }
+
+      var questionSet = [];
+      entries.forEach(function (entry) {
+        Object.keys(entry.answers || {}).forEach(function (q) {
+          if (questionSet.indexOf(q) === -1) questionSet.push(q);
+        });
+      });
+
+      var headers = ["제출시각"].concat(questionSet, ["주제", "감정", "비속어여부"]);
+      var rows = [headers];
+
+      var sorted = entries.slice().sort(function (a, b) {
+        return new Date(b.timestamp) - new Date(a.timestamp);
+      });
+
+      sorted.forEach(function (entry) {
+        var row = [formatTimestamp(entry.timestamp)];
+        var answers = entry.answers || {};
+        questionSet.forEach(function (q) {
+          var value = answers[q];
+          row.push(Array.isArray(value) ? value.join(", ") : (value == null ? "" : value));
+        });
+        var classification = entry.classification || {};
+        row.push(classification.topic || "");
+        row.push(classification.sentiment ? (SENTIMENT_LABEL[classification.sentiment] || classification.sentiment) : "");
+        row.push(classification.hasProfanity === true ? "Y" : (classification.hasProfanity === false ? "N" : ""));
+        rows.push(row);
+      });
+
+      var csvContent = rows.map(function (row) {
+        return row.map(escapeCsvField).join(",");
+      }).join("\r\n");
+
+      var blob = new Blob(["﻿" + csvContent], { type: "text/csv;charset=utf-8;" });
+      var url = URL.createObjectURL(blob);
+      var link = document.createElement("a");
+      link.href = url;
+      link.download = "설문응답_" + new Date().toISOString().slice(0, 10) + ".csv";
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
     }
 
     function renderHiddenPanel(hiddenEntries) {
@@ -618,6 +837,12 @@
     }
 
     document.getElementById("adminToggle").addEventListener("click", toggleAdminMode);
+    document.getElementById("wordCloudToggle").addEventListener("click", toggleWordCloud);
+    document.getElementById("csvDownload").addEventListener("click", downloadCsv);
+    document.getElementById("searchInput").addEventListener("input", function (e) {
+      searchQuery = e.target.value.trim().toLowerCase();
+      renderAll(allEntries, currentIsSample);
+    });
 
     loadResponses();
   </script>
