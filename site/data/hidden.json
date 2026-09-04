@@ -76,5 +76,19 @@
       "profanityNote": "부적절한 인터넷 은어(앙기모띠) 사용"
     },
     "hiddenAt": "2026-09-04T12:14:57.148Z"
+  },
+  {
+    "timestamp": "2026-09-04T12:25:49.895Z",
+    "answers": {
+      "이름 및 학번(필수x. 익명 건의도 가능)": "",
+      "건의 사항": "춘식이 복귀"
+    },
+    "classification": {
+      "topic": "캐릭터 복귀 요청",
+      "sentiment": "neutral",
+      "hasProfanity": false,
+      "profanityNote": ""
+    },
+    "hiddenAt": "2026-09-04T12:27:19.923Z"
   }
 ]
