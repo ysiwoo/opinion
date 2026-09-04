@@ -1,15 +1,1 @@
-[
-  {
-    "timestamp": "2026-09-04T12:27:51.435Z",
-    "answers": {
-      "이름 및 학번(필수x. 익명 건의도 가능)": "2학년 9반 윤슈",
-      "건의 사항": "기숙사 좀 뜯어겨쳐라"
-    },
-    "classification": {
-      "topic": "시설 개선",
-      "sentiment": "negative",
-      "hasProfanity": false,
-      "profanityNote": ""
-    }
-  }
-]
+[]
